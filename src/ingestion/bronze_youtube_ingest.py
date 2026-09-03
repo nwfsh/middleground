@@ -33,43 +33,77 @@ def get_youtube_metadata(video_id: str) -> dict:
 ## contentDetails : duration, resolution, region restrictions, caption availability, we need it for dim_video 
 ## status : privacy status, upload status, whether it's embeddable, made-for-kids flag : to track if it has been taken down through tracking 
 
-def get_all_comments(video_id: str) -> list[dict]:
+def get_remaining_replies(parent_id: str) -> dict:
+    """Pull full reply list for a thread with more replies than were inlined."""
+    replies = []
+    page_token = None
+    while True:
+        params = {
+            "part": "snippet",
+            "parentId": parent_id,
+            "maxResults": 100,
+            "textFormat": "plainText",
+            "key": API_KEY,
+        }
+        if page_token:
+            params["pageToken"] = page_token
+        resp = requests.get(f"{BASE_URL}/comments", params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        replies.append(data)
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            break
+    return {"parentId": parent_id, "pages": replies}
+
+# pls note this does not remove the duplicate of the top 4 replies, this is raw ingestion rn, will
+# remove duplicate replies later 
+def get_all_comments(video_id: str) -> dict:
     """
-    get all full comment thread of a video, paginate all pagres
-    top level comment + replies 
-    note : one page of comments ( containing max 100 ) -> cost 1 unit
-    youtube DATA API : max 10,000 units per day 
+    Get all comment threads + full replies for a video.
+    - commentThreads.list: 1 unit per page (max 100 threads), returns up to 4 replies inline
+    - comments.list: 1 unit per page for threads where replies were truncated
+    Returns {"threads": [...raw pages...], "full_replies": [...per truncated thread...]}
     """
     comments = []
+    threads_needing_full_replies = []
     page_token = None
 
     while True:
         params = {
             "part": "snippet,replies",
             "videoId": video_id,
-            "maxResults": 100,  # API max per page
+            "maxResults": 100,
             "textFormat": "plainText",
             "key": API_KEY,
         }
         if page_token:
-            params["pageToken"] = page_token ## first time will be false 
+            params["pageToken"] = page_token
 
         resp = requests.get(f"{BASE_URL}/commentThreads", params=params)
 
         if resp.status_code == 403:
-            # Common cause: comments disabled on this video, or quota exceeded
             print(f"403 error: {resp.json().get('error', {}).get('message')}")
-            break
+            raise RuntimeError("Stopped early — pull is INCOMPLETE, do not treat as done")
 
-        resp.raise_for_status() ## see if API call succeeded 
+        resp.raise_for_status()
         data = resp.json()
-        comments.append(data)  # land each raw page as-is, don't flatten yet
+        comments.append(data)
+
+        for item in data.get("items", []):
+            total = item["snippet"]["totalReplyCount"]
+            inlined = len(item.get("replies", {}).get("comments", []))
+            if total > inlined:
+                threads_needing_full_replies.append(item["id"])
 
         page_token = data.get("nextPageToken")
         if not page_token:
             break
 
-    return comments
+    print(f"{len(threads_needing_full_replies)} threads have uncaptured replies, fetching...")
+    full_replies = [get_remaining_replies(pid) for pid in threads_needing_full_replies]
+
+    return {"threads": comments, "full_replies": full_replies}
 
 
 def land_raw_json(payload, video_id: str, kind: str):
@@ -87,23 +121,22 @@ def ingest_video(video_id: str):
     metadata = get_youtube_metadata(video_id)
     land_raw_json(metadata, video_id, "video_metadata")
 
-    print(f"Pulling comment thread for {video_id}...")
-    comment_pages = get_all_comments(video_id)
-    land_raw_json(comment_pages, video_id, "comments")
+    print(f"Pulling comments for {video_id}...")
+    comments = get_all_comments(video_id)
+    land_raw_json(comments, video_id, "comments")
 
-    total_top_level = sum(len(p.get("items", [])) for p in comment_pages)
-    print(f"Done. {len(comment_pages)} pages, ~{total_top_level} top-level comments.")
+    thread_pages = comments["threads"]
+    total_top_level = sum(len(p.get("items", [])) for p in thread_pages)
+    print(f"Done. {len(thread_pages)} thread pages, ~{total_top_level} top-level comments, {len(comments['full_replies'])} threads fully expanded.")
 
-## API response → Python dict (in memory) → JSON file (on disk)
 
 if __name__ == "__main__":
     if not API_KEY:
         raise SystemExit("Set YOUTUBE_API_KEY as an environment variable first.")
 
-    VIDEO_ID = [
+    VIDEO_IDS = [
         "giZy9gEydzM",
-        "VtuuvyLEmG4"
-        # "Gw-vKxhxGIY" did earlier 
+        "VtuuvyLEmG4",
     ]
-     # the 11-char id from the YouTube URL
-    ingest_video(VIDEO_ID)
+    for video_id in VIDEO_IDS:
+        ingest_video(video_id)
