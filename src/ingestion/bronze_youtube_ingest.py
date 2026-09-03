@@ -33,6 +33,7 @@ def get_youtube_metadata(video_id: str) -> dict:
 ## contentDetails : duration, resolution, region restrictions, caption availability, we need it for dim_video 
 ## status : privacy status, upload status, whether it's embeddable, made-for-kids flag : to track if it has been taken down through tracking 
 
+# helper function to get all the remaining replies in get_all_comments 
 def get_remaining_replies(parent_id: str) -> dict:
     """Pull full reply list for a thread with more replies than were inlined."""
     replies = []
@@ -56,8 +57,9 @@ def get_remaining_replies(parent_id: str) -> dict:
             break
     return {"parentId": parent_id, "pages": replies}
 
+
 # pls note this does not remove the duplicate of the top 4 replies, this is raw ingestion rn, will
-# remove duplicate replies later 
+# remove duplicate replies later
 def get_all_comments(video_id: str) -> dict:
     """
     Get all comment threads + full replies for a video.
@@ -115,7 +117,7 @@ def land_raw_json(payload, video_id: str, kind: str):
         json.dump(payload, f, indent=2)
     print(f"Landed {kind} → {out_path}") 
 
-
+## joining all the helper functions together 
 def ingest_video(video_id: str):
     print(f"Pulling metadata for {video_id}...")
     metadata = get_youtube_metadata(video_id)
@@ -125,8 +127,9 @@ def ingest_video(video_id: str):
     comments = get_all_comments(video_id)
     land_raw_json(comments, video_id, "comments")
 
-    thread_pages = comments["threads"]
-    total_top_level = sum(len(p.get("items", [])) for p in thread_pages)
+    thread_pages = comments["threads"] ## get the dict 
+    total_top_level = sum(len(p.get("items", [])) for p in thread_pages) # count how many comments in item list and add tgt 
+    ## giving u a quick summary at the end 
     print(f"Done. {len(thread_pages)} thread pages, ~{total_top_level} top-level comments, {len(comments['full_replies'])} threads fully expanded.")
 
 
