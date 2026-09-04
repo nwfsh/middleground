@@ -53,6 +53,7 @@ x-airflow-common:
   # build: .
   environment:
     &airflow-common-env
+    PYTHONPATH: /opt/airflow/src # tell python inside the countainer to look for this so import bronze_youtube_ingest will work 
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
@@ -69,14 +70,17 @@ x-airflow-common:
     # WARNING: Use _PIP_ADDITIONAL_REQUIREMENTS option ONLY for a quick checks
     # for other purpose (development, test and especially production usage) build/extend Airflow image.
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+    YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
     # The following line can be used to set a custom config file, stored in the local config folder
     # If you want to use it, outcomment it and replace airflow.cfg with the name of your config file
     # AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
-  volumes:
-    - airflow-dags:/opt/airflow/dags
-    - airflow-logs:/opt/airflow/logs
-    - airflow-config:/opt/airflow/config
-    - airflow-plugins:/opt/airflow/plugins
+  volumes: ## this tells dockre when u oepn airflow/src, also open this project, middleground/src, show them whats inside 
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./config:/opt/airflow/config
+    - ./plugins:/opt/airflow/plugins
+    - ../src:/opt/airflow/src
+    - ../bronze:/opt/airflow/bronze
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on
