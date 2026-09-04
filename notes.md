@@ -17,3 +17,16 @@ docker is currently running on my machine,and airflow is running on docker, dock
 5. localhost:8080 = you looking at Airflow's dashboard in your browser. Not your files, not a separate program — just a webpage view into what those containers are doing.
 
 6. venv = the other way to install Airflow, directly onto your Mac instead of in a sealed lunchbox. Works, but more likely to have things clash with each other.
+
+- Need to give permission to docker to access your documents (aka your repository files)
+- Dag needs to be in the same folder as docker 
+
+WHEN U SET docker-compose.yaml like this: this is a hidden internal storage 
+volumes:
+  - airflow-dags:/opt/airflow/dags
+
+WHEN U SET bind mount — shared drawer:u share your local files to container
+volumes:
+  - ./dags:/opt/airflow/dags
+
+Named volumes are internal to Docker and don't reflect your local files; bind mounts directly link a local folder to the container
