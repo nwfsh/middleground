@@ -30,3 +30,18 @@ volumes:
   - ./dags:/opt/airflow/dags
 
 Named volumes are internal to Docker and don't reflect your local files; bind mounts directly link a local folder to the container
+
+run pyspark on venv ( python virtual environment stored in computer )first -> prove that layer works -> then get pyspark to be accessible to airflow
+
+pyspark :
+- part of apache spark
+- it is a python interface ontop of apache spark
+- apache spark is written in java and scala so u need this translation 
+
+apache spark:
+- its an open sourced distributed computing engine 
+- for querying, analysing data across mutliple computers
+- benefits : most data frameworks rely on actually reading and writing to hard drive, while apache spark focuses on performing 
+all its things inside a RAM 
+
+EASY TO SCALE, can run on one laptop or multiple 
